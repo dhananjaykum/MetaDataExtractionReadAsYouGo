@@ -1,7 +1,9 @@
 #pragma once
 #include <Windows.h>
 #include <map>
+
 #include "PEParser.h"
+#include "File.h"
 
 #define ORIGINAL_FILENAME_STRING	L"OriginalFilename"
 #define COMPANY_NAME_STRING			L"CompanyName"
@@ -40,26 +42,16 @@ using versionInformationMap = std::map<VersionInfoItemIDs, std::wstring>;
 class MetadataEx
 {
 public:
+	MetadataEx(std::string file)
+		: m_file(file)
+	{};
+
 	bool getVersionInformation(
-		const std::string& fileName,
 		versionInformationMap& entity);
 
+	File m_file;
+
 private:
-	bool loadFile(
-		const std::string& path,
-		BYTE*& buffer,
-		uint32_t& fileSize);
-
-	bool openFile(
-		const char* path, HANDLE& handle);
-
-	bool mapFile(
-		HANDLE handle,
-		BYTE*& buf);
-
-	void* displayErrorString(
-		DWORD);
-
 	bool searchVersionInfoByName(
 		const version_values_t& versionInfo,
 		const std::wstring& key,

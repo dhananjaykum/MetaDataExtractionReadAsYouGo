@@ -4,6 +4,7 @@
 #include <iostream>
 #include <vector>
 #include <tuple>
+#include "File.h"
 
 //namespace uc
 //{
@@ -101,14 +102,13 @@ using version_values_t = std::vector<version_value_t>;
     {
         public:
             void reset();
-            bool parse(
-				const std::string& filepath,
-				const BYTE* pBuffer,
-				const uint32_t bufSize);
+			bool parse(
+				File& file);
 
 			bool parseResourceDir(
 				const LPWSTR resourceId,
-				resource_section_info_t& pResourceSection);
+				resource_section_info_t& pResourceSection,
+				File& file);
 
             bool parseVersionInfo(
 				const resource_section_info_t& pResourceSection,
@@ -118,6 +118,10 @@ using version_values_t = std::vector<version_value_t>;
 
         private:
             static constexpr DWORD BUF_SIZE = (8 * 1024); // 8k
+			static constexpr uint32_t MAX_NUM_SECTIONS = 100;
+			static constexpr uint32_t MAX_NUM_DATA_DIRECTORIES = 20;
+			static constexpr uint32_t MAX_NUM_SUBSYSTEMS = 20;
+
             std::string m_fileName;
             PEfileType m_flags;
             uint32_t m_numSections;
@@ -125,6 +129,7 @@ using version_values_t = std::vector<version_value_t>;
 			uint32_t m_subSystem;
 			uint32_t m_bufSize;
 
+			BYTE  m_dosHdr[sizeof(IMAGE_DOS_HEADER)];
             IMAGE_DOS_HEADER* m_pDosHdr;				/* Dos header */
             IMAGE_NT_HEADERS* m_pPeHdr;					/* PE header */
 			IMAGE_NT_HEADERS32* m_pNtHdr32;				/* Nt header 32-bit */
