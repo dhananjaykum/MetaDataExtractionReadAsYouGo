@@ -57,16 +57,8 @@ bool MetadataEx::getVersionInformation(
 	catch (const std::exception & ex)
 	{
 		std::cout << "Caught exception: " << ex.what() << std::endl;
+		return false;
 	}
-
-#ifdef _DEBUG
-	std::cout << "\nPrinting everything ==>\n";
-	for (auto i : versionInfo)
-	{
-		std::wcout << i.first << " = " << i.second << std::endl;
-	}
-	std::cout << "\n";
-#endif
 
 	if (!versionInfo.empty())
 	{

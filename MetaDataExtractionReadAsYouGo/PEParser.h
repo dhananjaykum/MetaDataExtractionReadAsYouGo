@@ -59,6 +59,17 @@ using version_values_t = std::vector<version_value_t>;
 
 #define ENG_LANG_CODE_STRING        (L"09")
 
+
+#define SEEK_AND_READ(file,offset,buf,type,num,ret)\
+do{\
+    ret = file.seekStart(offset);\
+    if (ret)\
+    {\
+        buf = new type[num];\
+        ret = file.read(buf, sizeof(type)*num);\
+    }\
+}while(0)
+
 #pragma pack(1)
 	typedef struct version_info_st {
 		UINT16 length;

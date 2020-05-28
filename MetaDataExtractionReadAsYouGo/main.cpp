@@ -14,6 +14,7 @@ int main()
 		auto productVersion = versionInfo[ITEM_ID_VERSION_RESOURCE_PRODUCT_VERSION];
 		auto fileVersion = versionInfo[ITEM_ID_VERSION_RESOURCE_FILE_VERSION];
 
+		std::cout << std::endl;
 		std::wcout << "Original Filename is [" << originalFileName << "].\n";
 		std::wcout << "Company Name is      [" << companyName << "].\n";
 		std::wcout << "Product Name is      [" << productName << "].\n";
