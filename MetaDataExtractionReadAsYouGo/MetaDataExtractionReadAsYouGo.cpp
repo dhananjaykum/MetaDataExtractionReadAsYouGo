@@ -31,20 +31,20 @@ bool MetadataEx::searchVersionInfoByName(
 bool MetadataEx::getVersionInformation(
 	versionInformationMap& entity)
 {
-	BYTE* fileData = nullptr;
-	uint32_t fileSize = 0;
 	version_values_t versionInfo;
-
 	auto ret{ false };
+
 	try
 	{
 		resource_section_info_t resourceSectionInfo{};
 		PEParser parser;
 
 		ret = m_file.open();
-		CHECK_RET_CODE(ret, "loadFile failed");
-
-		ret = ret && parser.parse(m_file);
+		CHECK_RET_CODE(ret, "openFile failed");
+		
+		ret = ret && parser.parse(m_file.getName(),
+			std::bind(&File::seekStart, &m_file, std::placeholders::_1),
+			std::bind(&File::read, &m_file, std::placeholders::_1, std::placeholders::_2));
 		CHECK_RET_CODE(ret, "parsing PE header failed");
 
 		ret = ret && parser.parseResourceDir(RT_VERSION, resourceSectionInfo, m_file);

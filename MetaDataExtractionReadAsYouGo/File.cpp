@@ -22,7 +22,6 @@ void* displayErrorString(
 }
 
 /********************* File ******************/
-
 File::File(const std::string& file)
 	: m_fileName{ file },
 	m_handle{ INVALID_HANDLE_VALUE },

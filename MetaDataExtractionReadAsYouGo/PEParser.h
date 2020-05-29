@@ -4,6 +4,7 @@
 #include <iostream>
 #include <vector>
 #include <tuple>
+#include <functional>
 #include "File.h"
 
 //namespace uc
@@ -60,13 +61,13 @@ using version_values_t = std::vector<version_value_t>;
 #define ENG_LANG_CODE_STRING        (L"09")
 
 
-#define SEEK_AND_READ(file,offset,buf,type,num,ret)\
+#define SEEK_AND_READ(offset,buf,type,num,ret)\
 do{\
-    ret = file.seekStart(offset);\
+    ret = m_pSeek(offset);\
     if (ret)\
     {\
         buf = new type[num];\
-        ret = file.read(buf, sizeof(type)*num);\
+        ret = m_pRead(buf, sizeof(type)*num);\
     }\
 }while(0)
 
@@ -112,9 +113,15 @@ do{\
     class PEParser
     {
         public:
+			using pSeek_t = std::function<bool(long)>;
+			using pRead_t = std::function<bool(void*, const DWORD)>;
+
             void reset();
+
 			bool parse(
-				File& file);
+				const std::string& fileName,
+				pSeek_t pSeek,
+				pRead_t pRead);
 
 			bool parseResourceDir(
 				const LPWSTR resourceId,
@@ -133,12 +140,16 @@ do{\
 			static constexpr uint32_t MAX_NUM_DATA_DIRECTORIES = 20;
 			static constexpr uint32_t MAX_NUM_SUBSYSTEMS = 20;
 
+
+
             std::string m_fileName;
             PEfileType m_flags;
             uint32_t m_numSections;
 			uint32_t m_numDataDirectories;
 			uint32_t m_subSystem;
 			uint32_t m_bufSize;
+			pSeek_t  m_pSeek;
+			pRead_t  m_pRead;
 
 			BYTE  m_dosHdr[sizeof(IMAGE_DOS_HEADER)];
             IMAGE_DOS_HEADER* m_pDosHdr;				/* Dos header */

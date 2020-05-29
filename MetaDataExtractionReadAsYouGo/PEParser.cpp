@@ -21,28 +21,32 @@
         m_flags = PEfileType::PE_TYPE_NONE;
     }
 
-    bool PEParser::parse(
-		File& file)
+	bool PEParser::parse(
+		const std::string& fileName,
+		std::function<bool(long)> pSeek,
+		std::function<bool(void*, const DWORD)> pRead)
      {
-		if (!file.getName().size() || !file.isOpened())
+		//if (!file.getName().size() || !file.isOpened())
+		if (!pSeek || !pRead)
 		{
 			throw std::runtime_error("Invalid arguments to parser.");
 		}
-
 
 		reset();
 		auto ret{ false };
 		auto currentOffset{ 0u };
 		
-        m_fileName = file.getName();
-		SEEK_AND_READ(file, currentOffset, m_pDosHdr, IMAGE_DOS_HEADER,1,ret);
+        m_fileName = fileName;
+		m_pSeek = pSeek;
+		m_pRead = pRead;
 
 		// 'MZ' header check
-        ret = ret && (m_pDosHdr->e_magic == IMAGE_DOS_SIGNATURE);
+		SEEK_AND_READ(currentOffset, m_pDosHdr, IMAGE_DOS_HEADER,1,ret);
+		ret = ret && (m_pDosHdr->e_magic == IMAGE_DOS_SIGNATURE);
 		if (ret)
 		{
 			currentOffset += m_pDosHdr->e_lfanew;
-			SEEK_AND_READ(file, currentOffset, m_pPeHdr, IMAGE_NT_HEADERS,1,ret);
+			SEEK_AND_READ(currentOffset, m_pPeHdr, IMAGE_NT_HEADERS,1,ret);
 			ret = (m_pPeHdr->Signature == IMAGE_NT_SIGNATURE);
 			if (ret)
 			{
@@ -60,7 +64,7 @@
 				currentOffset += sizeof(m_pPeHdr->Signature) + sizeof(IMAGE_FILE_HEADER) +
 					m_pPeHdr->FileHeader.SizeOfOptionalHeader;
 
-				SEEK_AND_READ(file, currentOffset, m_pSectionTable, IMAGE_SECTION_HEADER, m_numSections,ret);
+				SEEK_AND_READ(currentOffset, m_pSectionTable, IMAGE_SECTION_HEADER, m_numSections,ret);
 				for (auto i = 0u; i < m_numSections; i++)
 				{
 					std::cout << "Name is: " << m_pSectionTable[i].Name << std::endl;
@@ -252,9 +256,9 @@
 			auto seekOffset = pResourceSection.offset;
 			auto rootDirOffset = pResourceSection.offset;
 
-			SEEK_AND_READ(file, seekOffset, pResourceSection.levels[0].pDir, IMAGE_RESOURCE_DIRECTORY,1,ret);
+			SEEK_AND_READ(seekOffset, pResourceSection.levels[0].pDir, IMAGE_RESOURCE_DIRECTORY,1,ret);
 			seekOffset += sizeof(IMAGE_RESOURCE_DIRECTORY);
-			SEEK_AND_READ(file, seekOffset, pResourceSection.levels[0].pEntry, IMAGE_RESOURCE_DIRECTORY_ENTRY,1,ret);
+			SEEK_AND_READ(seekOffset, pResourceSection.levels[0].pEntry, IMAGE_RESOURCE_DIRECTORY_ENTRY,1,ret);
 
 			if (!ret || !pResourceSection.levels[0].pDir || !pResourceSection.levels[0].pEntry)
             {
@@ -283,7 +287,7 @@
                     }
 
 					seekOffset += sizeof(IMAGE_RESOURCE_DIRECTORY_ENTRY);
-					SEEK_AND_READ(file, seekOffset, pTempDirEntry, IMAGE_RESOURCE_DIRECTORY_ENTRY,1,ret);
+					SEEK_AND_READ(seekOffset, pTempDirEntry, IMAGE_RESOURCE_DIRECTORY_ENTRY,1,ret);
                 }
             }
 
@@ -297,10 +301,10 @@
 			{
 				// Level 1
 				auto nextDirOffset = rootDirOffset + pTempDirEntry->OffsetToDirectory;
-				SEEK_AND_READ(file, nextDirOffset, pResourceSection.levels[1].pDir, IMAGE_RESOURCE_DIRECTORY,1,ret);
+				SEEK_AND_READ(nextDirOffset, pResourceSection.levels[1].pDir, IMAGE_RESOURCE_DIRECTORY,1,ret);
 
 				nextDirOffset += sizeof(IMAGE_RESOURCE_DIRECTORY);
-				SEEK_AND_READ(file, nextDirOffset, pResourceSection.levels[1].pEntry, IMAGE_RESOURCE_DIRECTORY_ENTRY,1,ret);
+				SEEK_AND_READ(nextDirOffset, pResourceSection.levels[1].pEntry, IMAGE_RESOURCE_DIRECTORY_ENTRY,1,ret);
 
 				if (!ret)
 				{
@@ -318,10 +322,10 @@
 					if (pTempDirEntry && pTempDirEntry->DataIsDirectory == 1)
 					{
 						auto nextDirOffset = rootDirOffset + pTempDirEntry->OffsetToDirectory;
-						SEEK_AND_READ(file, nextDirOffset, pResourceSection.levels[2].pDir, IMAGE_RESOURCE_DIRECTORY,1,ret);
+						SEEK_AND_READ(nextDirOffset, pResourceSection.levels[2].pDir, IMAGE_RESOURCE_DIRECTORY,1,ret);
 
 						nextDirOffset += sizeof(IMAGE_RESOURCE_DIRECTORY);
-						SEEK_AND_READ(file, nextDirOffset, pResourceSection.levels[2].pEntry, IMAGE_RESOURCE_DIRECTORY_ENTRY,1,ret);
+						SEEK_AND_READ(nextDirOffset, pResourceSection.levels[2].pEntry, IMAGE_RESOURCE_DIRECTORY_ENTRY,1,ret);
 
 						if (!ret)
 						{
@@ -336,7 +340,7 @@
 						{
 							// Level 3
 							assert(pTempDirEntry->DataIsDirectory == 0); // level 3 points to Data (leaf node)
-							SEEK_AND_READ(file, rootDirOffset + pTempDirEntry->OffsetToData, pResourceSection.pData, IMAGE_RESOURCE_DATA_ENTRY,1,ret);
+							SEEK_AND_READ(rootDirOffset + pTempDirEntry->OffsetToData, pResourceSection.pData, IMAGE_RESOURCE_DATA_ENTRY,1,ret);
 
 							if (pResourceSection.pData)
 							{
@@ -344,7 +348,7 @@
 								assert(pResourceSection.pData->Size > 0);
 
 								auto dataOffset{ pResourceSection.pData->OffsetToData - pResourceSection.datadirRva };
-								SEEK_AND_READ(file, rootDirOffset + dataOffset, pResourceSection.pDataBuffer, BYTE, pResourceSection.pData->Size, ret);
+								SEEK_AND_READ(rootDirOffset + dataOffset, pResourceSection.pDataBuffer, BYTE, pResourceSection.pData->Size, ret);
 							}
 						}
 					}

@@ -151,11 +151,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="File.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MetaDataExtractionReadAsYouGo.cpp" />
     <ClCompile Include="PEParser.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="File.h" />
     <ClInclude Include="MetaDataExtractionReadAsYouGo.h" />
     <ClInclude Include="PEParser.h" />
   </ItemGroup>
