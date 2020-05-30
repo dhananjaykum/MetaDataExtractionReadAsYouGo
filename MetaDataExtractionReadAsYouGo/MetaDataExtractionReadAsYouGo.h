@@ -5,12 +5,15 @@
 #include "PEParser.h"
 #include "File.h"
 
+<-- Use static constexpr wchar_t* instead of macros
 #define ORIGINAL_FILENAME_STRING	L"OriginalFilename"
 #define COMPANY_NAME_STRING			L"CompanyName"
 #define FILE_VERSION_STRING			L"FileVersion"
 #define PRODUCT_NAME_STRING			L"ProductName"
 #define PRODUCT_VERSION_STRING		L"ProductVersion"
 
+
+<-- Use inline functions instead of macros
 #define CHECK_RET_CODE(ret,ERR)\
 do {\
 if (!ret)\
@@ -28,6 +31,8 @@ do{\
 		entity.emplace((ItemID), value);\
 	}\
 }while(0)
+
+<-- Use enum class
 typedef enum
 {
 	ITEM_ID_VERSION_RESOURCE_ORIGINAL_FILE_NAME = 1,
@@ -37,6 +42,7 @@ typedef enum
 	ITEM_ID_VERSION_RESOURCE_FILE_VERSION
 } VersionInfoItemIDs;
 
+<-- Use unordered_map if ordering is not required
 using versionInformationMap = std::map<VersionInfoItemIDs, std::wstring>;
 
 class MetadataEx
