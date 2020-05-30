@@ -3,7 +3,7 @@
 void* displayErrorString(
 	DWORD error)
 {
-	LPVOID lpMsgBuf;
+	LPVOID lpMsgBuf; <-- DJ: Convert this to std::unique_ptr with custom deleter that calls LocalFree()
 	if (!FormatMessage(
 		FORMAT_MESSAGE_ALLOCATE_BUFFER |
 		FORMAT_MESSAGE_FROM_SYSTEM |
@@ -22,8 +22,9 @@ void* displayErrorString(
 }
 
 /********************* File ******************/
-File::File(const std::string& file)
-	: m_fileName{ file },
+<-- If this calss is unusable without opening handle to the file, open it in constructor itself and throw exception if it 
+can't be opened. Read about RAII principle(Resource acquisition is Initialization) 
+File::File(const std::string& file) 
 	m_handle{ INVALID_HANDLE_VALUE },
 	m_currentPosition{ 0 }
 {};
