@@ -11,7 +11,11 @@ bool MetadataEx::searchVersionInfoByName(
 	const std::wstring& key,
 	std::wstring& value)
 {
-	auto found{ false };
+	auto found{ false }; <-- Using bool is fine here.
+		
+	<-- Use const auto& instead of auto
+	<-- You can use more meaningful names instead of first and second
+	<-- const auto& [meaningfulName1, menaingfuleName2] (Feature: C++ 17 structured bindings)
 	for (auto i : versionInfo)
 	{
 		if (wcsncmp(i.first.c_str(), key.c_str(), key.size()) == 0)
@@ -21,6 +25,7 @@ bool MetadataEx::searchVersionInfoByName(
 		}
 	}
 
+	<-- Versioninfo is never expected to be empty string. You can return empty string in case of failure.
 	if (!found)
 	{
 		std::wcout << "Resource value " << key << " not found in VS_VERSIONINFO.\n";
@@ -32,6 +37,7 @@ bool MetadataEx::getVersionInformation(
 	versionInformationMap& entity)
 {
 	version_values_t versionInfo;
+	<-- bool is fine. No advantage of using auto.
 	auto ret{ false };
 
 	try
