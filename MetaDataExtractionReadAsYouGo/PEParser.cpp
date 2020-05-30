@@ -4,6 +4,8 @@
 
 //namespace cu
 //{
+
+<-- See if new PEParser object can be created for every parsing
     void PEParser::reset()
     {
         m_fileName.clear();
@@ -20,7 +22,7 @@
         m_subSystem = 0;
         m_flags = PEfileType::PE_TYPE_NONE;
     }
-
+<-- Do we need to send pSeek and pRead for every parsing or it can be set once in the constructor?
 	bool PEParser::parse(
 		const std::string& fileName,
 		std::function<bool(long)> pSeek,
@@ -85,7 +87,7 @@
 
 		return ret;
 	}
-
+	<-- Use const T& as T may not always be primitive type
 	template <typename T>
 	bool constexpr validate_numeric_value(T value, T max, const T min = 0)
 	{
