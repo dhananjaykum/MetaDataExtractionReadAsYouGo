@@ -21,69 +21,62 @@
         m_flags = PEfileType::PE_TYPE_NONE;
     }
 
+
 	bool PEParser::parse(
 		const std::string& fileName,
 		std::function<bool(long)> pSeek,
 		std::function<bool(void*, const DWORD)> pRead)
      {
-		//if (!file.getName().size() || !file.isOpened())
-		if (!pSeek || !pRead)
+		if (!fileName.size() || !pSeek || !pRead)
 		{
 			throw std::runtime_error("Invalid arguments to parser.");
 		}
 
 		reset();
-		auto ret{ false };
+		auto success{ false };
 		auto currentOffset{ 0u };
-		
-        m_fileName = fileName;
+
+		m_fileName = fileName;
 		m_pSeek = pSeek;
 		m_pRead = pRead;
 
-		// 'MZ' header check
-		SEEK_AND_READ(currentOffset, m_pDosHdr, IMAGE_DOS_HEADER,1,ret);
-		ret = ret && (m_pDosHdr->e_magic == IMAGE_DOS_SIGNATURE);
-		if (ret)
+		SEEK_AND_READ(currentOffset, m_pDosHdr, IMAGE_DOS_HEADER,1,success);
+		success = success && (m_pDosHdr->e_magic == IMAGE_DOS_SIGNATURE);
+		if (success)
 		{
 			currentOffset += m_pDosHdr->e_lfanew;
-			SEEK_AND_READ(currentOffset, m_pPeHdr, IMAGE_NT_HEADERS,1,ret);
-			ret = (m_pPeHdr->Signature == IMAGE_NT_SIGNATURE);
-			if (ret)
-			{
-				if (m_pPeHdr->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC)
-				{
-					std::cout << "32-bit" << std::endl;
-					ret = parsePeFileType(PEfileType::PE_TYPE_32BIT, m_pNtHdr32, m_pOptionalHdr32);
-				}
-				else
-				{
-					std::cout << "64-bit" << std::endl;
-					ret = parsePeFileType(PEfileType::PE_TYPE_64BIT, m_pNtHdr64, m_pOptionalHdr64);
-				}
-
-				currentOffset += sizeof(m_pPeHdr->Signature) + sizeof(IMAGE_FILE_HEADER) +
-					m_pPeHdr->FileHeader.SizeOfOptionalHeader;
-
-				SEEK_AND_READ(currentOffset, m_pSectionTable, IMAGE_SECTION_HEADER, m_numSections,ret);
-				for (auto i = 0u; i < m_numSections; i++)
-				{
-					std::cout << "Name is: " << m_pSectionTable[i].Name << std::endl;
-				}
-			}
-			else
-			{
-				throw std::runtime_error(PE_PARSE_ERR "PE Signature not found.");
-			}
+			SEEK_AND_READ(currentOffset, m_pPeHdr, IMAGE_NT_HEADERS,1,success);
+			success = (m_pPeHdr->Signature == IMAGE_NT_SIGNATURE);
 		}
 		else
 		{
-			std::cout << m_fileName << " is not a valid executable. Skipping." << std::endl;
+            throw std::runtime_error(PE_PARSE_ERR "DOS Header not found.");
 		}
 
-		if (!ret)
+        if (success)
+        {
+            if (m_pPeHdr->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC)
+            {
+                success = parsePeFileType(PEfileType::PE_TYPE_32BIT, m_pNtHdr32, m_pOptionalHdr32);
+            }
+            else
+            {
+                success = parsePeFileType(PEfileType::PE_TYPE_64BIT, m_pNtHdr64, m_pOptionalHdr64);
+            }
+
+            currentOffset += sizeof(m_pPeHdr->Signature) + sizeof(IMAGE_FILE_HEADER) +
+                m_pPeHdr->FileHeader.SizeOfOptionalHeader;
+            SEEK_AND_READ(currentOffset, m_pSectionTable, IMAGE_SECTION_HEADER, m_numSections,success);
+        }
+        else
+        {
+            throw std::runtime_error(PE_PARSE_ERR "PE Signature not found.");
+        }
+
+		if (!success)
 			reset();
 
-		return ret;
+		return success;
 	}
 
 	template <typename T>
@@ -116,16 +109,16 @@
 		m_numSections = m_pFileHdr->NumberOfSections;
 		m_subSystem = pOptionalHdr->Subsystem;
 		m_numDataDirectories = pOptionalHdr->NumberOfRvaAndSizes;
-		
+
 		std::cout << "Subsystem = " << m_subSystem << std::endl;
 		std::cout << "Number of Sections = " << m_numSections << std::endl;
 		std::cout << "NumDataDirectories = " << m_numDataDirectories << std::endl;
 
-		auto ret{ validate_numeric_value(m_numSections, MAX_NUM_SECTIONS) };
-		ret = ret && validate_numeric_value(m_subSystem, MAX_NUM_SUBSYSTEMS);
-		ret = ret && validate_numeric_value(m_numDataDirectories, MAX_NUM_DATA_DIRECTORIES);
-
-		return ret;
+        return (
+                validate_numeric_value(m_numSections, MAX_NUM_SECTIONS) &&
+                validate_numeric_value(m_subSystem, MAX_NUM_SUBSYSTEMS) &&
+                validate_numeric_value(m_numDataDirectories, MAX_NUM_DATA_DIRECTORIES)
+                );
 	}
 
     const uint32_t PEParser::getSubsystem() const
@@ -136,7 +129,7 @@
     bool PEParser::getResourceSection(
 		resource_section_info_t& pResourceSection)
     {
-        auto ret{ false };
+        auto rva{ 0ul };
 
 		if (!m_pSectionTable || !m_numSections || (!m_pOptionalHdr64 && !m_pOptionalHdr32))
 		{
@@ -145,89 +138,40 @@
 
 		if (m_numDataDirectories > IMAGE_DIRECTORY_ENTRY_RESOURCE)
         {
-            // This rva is only recommended to be used to locate the Section header for a section.
-            // The exact offset (or rva) of the section is inside the section header of the section.
-            auto rva{ 0ul };
-			if (m_flags == PEfileType::PE_TYPE_64BIT)
-            {
-                if (m_pOptionalHdr64)
-                {
-                    rva = m_pOptionalHdr64->DataDirectory
-                        [IMAGE_DIRECTORY_ENTRY_RESOURCE].VirtualAddress;
-                }
-            }
+			if (m_pOptionalHdr64)
+			{
+				assert(m_flags == PEfileType::PE_TYPE_64BIT);
+				rva = m_pOptionalHdr64->DataDirectory
+					[IMAGE_DIRECTORY_ENTRY_RESOURCE].VirtualAddress;
+			}
             else
             {
-                if (m_pOptionalHdr32)
-                {
-                    rva = m_pOptionalHdr32->DataDirectory
-                        [IMAGE_DIRECTORY_ENTRY_RESOURCE].VirtualAddress;
-                }
-            }
+                assert(m_flags == PEfileType::PE_TYPE_32BIT);
+                rva = m_pOptionalHdr32->DataDirectory
+                    [IMAGE_DIRECTORY_ENTRY_RESOURCE].VirtualAddress;
+			}
 
-            ret = (rva > 0);
-			if (ret)
+            for (auto i{ 0u }; i < m_numSections; i++)
             {
-                pResourceSection.hdr.sectionHdrIndex = -1;
-				for (auto i{ 0u }; i < m_numSections; i++)
+                auto sectionEnd = (m_pSectionTable[i].Misc.VirtualSize >
+                        m_pSectionTable[i].SizeOfRawData) ?
+                    m_pSectionTable[i].Misc.VirtualSize :
+                    m_pSectionTable[i].SizeOfRawData;
+
+                if ((rva >= m_pSectionTable[i].VirtualAddress) &&
+                        (rva < m_pSectionTable[i].VirtualAddress + sectionEnd))
                 {
-                    auto sectionEnd = (m_pSectionTable[i].Misc.VirtualSize >
-                            m_pSectionTable[i].SizeOfRawData) ?
-                        m_pSectionTable[i].Misc.VirtualSize :
-                        m_pSectionTable[i].SizeOfRawData;
-
-					auto offset = m_pSectionTable[i].PointerToRawData;
-									
-                    if ((rva >= m_pSectionTable[i].VirtualAddress) &&
-                            (rva < m_pSectionTable[i].VirtualAddress + sectionEnd))
-                    {
-                        strncpy_s(pResourceSection.hdr.name,
-                                (char*)(m_pSectionTable[i].Name), IMAGE_SIZEOF_SHORT_NAME);
-                        pResourceSection.hdr.name[IMAGE_SIZEOF_SHORT_NAME] = '\0';
-
-                        pResourceSection.hdr.pSectionHdr = &m_pSectionTable[i];
-						pResourceSection.datadirRva = rva;
-                        pResourceSection.hdr.sectionHdrIndex = i;
-                        pResourceSection.hdr.startRva = m_pSectionTable[i].VirtualAddress;
-                        pResourceSection.hdr.endRva = m_pSectionTable[i].VirtualAddress + sectionEnd;
-
-						std::cout << "Section header index for Resource section "
-                            "is found at index [" << i << "] and name [" <<
-                            pResourceSection.hdr.name << "].\n";
-                        break;
-                    }
-                }
-
-                if (pResourceSection.hdr.sectionHdrIndex == -1)
-                {
-                    std::cout << "Error: Resource section header not found.\n";
-                    return false;
-                }
-
-				ret = (pResourceSection.hdr.pSectionHdr != nullptr);
-				if (ret && pResourceSection.hdr.pSectionHdr->VirtualAddress !=
-                        pResourceSection.datadirRva)
-                {
-					ret = false;
-                    std::cout << "Resource section DataDirectory[RVA] = " <<
-                        rva << " and SectionHdr[RVA] = " <<
-                        pResourceSection.hdr.pSectionHdr->VirtualAddress <<
-                        " are not same." << std::endl;
-                    assert(1);
-                }
-
-				if (ret)
-                {
-					pResourceSection.offset =
-                        pResourceSection.hdr.pSectionHdr->PointerToRawData;
-
-                    std::cout << "Resource Section offset  = " <<
-                        pResourceSection.offset << std::endl;
+                    assert (rva == m_pSectionTable[i].VirtualAddress);
+                    pResourceSection.datadirRva = rva;
+                    pResourceSection.offset = m_pSectionTable[i].PointerToRawData;
+                    return true;
                 }
             }
+
+            std::cout << "Error: Resource section header not found.\n";
         }
 
-        return ret;
+        return false;
     }
 
 	bool PEParser::parseResourceDir(
@@ -235,78 +179,77 @@
 		resource_section_info_t& pResourceSection,
 		File& file)
     {
-        auto ret{ false };
-
+        auto found{ false };
 		if (!resourceId)
 		{
 			throw std::runtime_error("Invalid arguments to parserResourceDir.");
 		}
 
-        if (getResourceSection(pResourceSection))
-        {
-            auto found{ false };
-
-			if (!pResourceSection.hdr.pSectionHdr)
-            {
-                throw std::runtime_error(PE_PARSE_ERR "SectionHdr is null.");
-            }
+        auto success = getResourceSection(pResourceSection);
+		if (success)
+		{
+			if (!pResourceSection.offset)
+			{
+				throw std::runtime_error(PE_PARSE_ERR "Unable to locate the resource section.");
+			}
 
 			// PointerToRawData: This is the file-based offset of where the resource section resides in PE.
 			// VirtualAddress: This is the RVA to where the loader should map the section.
 			auto seekOffset = pResourceSection.offset;
 			auto rootDirOffset = pResourceSection.offset;
 
-			SEEK_AND_READ(seekOffset, pResourceSection.levels[0].pDir, IMAGE_RESOURCE_DIRECTORY,1,ret);
+			SEEK_AND_READ(seekOffset, pResourceSection.levels[0].pDir, IMAGE_RESOURCE_DIRECTORY, 1, success);
 			seekOffset += sizeof(IMAGE_RESOURCE_DIRECTORY);
-			SEEK_AND_READ(seekOffset, pResourceSection.levels[0].pEntry, IMAGE_RESOURCE_DIRECTORY_ENTRY,1,ret);
+			SEEK_AND_READ(seekOffset, pResourceSection.levels[0].pEntry, IMAGE_RESOURCE_DIRECTORY_ENTRY, 1, success);
 
-			if (!ret || !pResourceSection.levels[0].pDir || !pResourceSection.levels[0].pEntry)
-            {
-                throw std::runtime_error(PE_PARSE_ERR "ResourceDirectory is null.");
-            }
+			if (!success || !pResourceSection.levels[0].pDir || !pResourceSection.levels[0].pEntry)
+			{
+				throw std::runtime_error(PE_PARSE_ERR "ResourceDirectory is null.");
+			}
 
 			auto const pRootDir{ pResourceSection.levels[0].pDir };
-            auto const pRootDirEntry{ pResourceSection.levels[0].pEntry };
-            IMAGE_RESOURCE_DIRECTORY_ENTRY* pTempDirEntry{ pRootDirEntry };
+			auto const pRootDirEntry{ pResourceSection.levels[0].pEntry };
+			IMAGE_RESOURCE_DIRECTORY_ENTRY* pTempDirEntry{ pRootDirEntry };
 
-            // Locate required id type directory entry in root dir
-            ret = pRootDir && pRootDirEntry;
-            if (ret)
-            {
-                for (auto i = 0;
+			// Locate required id type directory entry in root dir
+			success = pRootDir && pRootDirEntry;
+
+			if (success)
+			{
+				for (auto i = 0;
 					i < (pRootDir->NumberOfIdEntries +
 						pRootDir->NumberOfNamedEntries);
 					i++)
-                {
+				{
 					if (pTempDirEntry &&
-                            pTempDirEntry->DataIsDirectory &&
-                            pTempDirEntry->Id == (WORD)(resourceId))
-                    {
+						pTempDirEntry->DataIsDirectory &&
+						pTempDirEntry->Id == (WORD)(resourceId))
+					{
 						found = true;
-                        break;
-                    }
+						break;
+					}
 
 					seekOffset += sizeof(IMAGE_RESOURCE_DIRECTORY_ENTRY);
-					SEEK_AND_READ(seekOffset, pTempDirEntry, IMAGE_RESOURCE_DIRECTORY_ENTRY,1,ret);
-                }
-            }
+					SEEK_AND_READ(seekOffset, pTempDirEntry, IMAGE_RESOURCE_DIRECTORY_ENTRY, 1, success);
+				}
+			}
 
 			if (!found)
-            {
-                std::cout << "Info: Resource " << resourceId << " not found in the EXE.\n";
-                ret = false;
-            }
+			{
+				std::cout << "Info: Resource " << resourceId << " not found in the EXE.\n";
+				success = false;
+			}
 
 			if (found)
 			{
 				// Level 1
 				auto nextDirOffset = rootDirOffset + pTempDirEntry->OffsetToDirectory;
-				SEEK_AND_READ(nextDirOffset, pResourceSection.levels[1].pDir, IMAGE_RESOURCE_DIRECTORY,1,ret);
+				SEEK_AND_READ(nextDirOffset, pResourceSection.levels[1].pDir, IMAGE_RESOURCE_DIRECTORY, 1, success);
 
 				nextDirOffset += sizeof(IMAGE_RESOURCE_DIRECTORY);
-				SEEK_AND_READ(nextDirOffset, pResourceSection.levels[1].pEntry, IMAGE_RESOURCE_DIRECTORY_ENTRY,1,ret);
+				SEEK_AND_READ(nextDirOffset, pResourceSection.levels[1].pEntry, IMAGE_RESOURCE_DIRECTORY_ENTRY, 1, success);
 
-				if (!ret)
+				if (!success)
 				{
 					throw std::runtime_error(PE_PARSE_ERR "ResourceDirectory is null.");
 				}
@@ -322,12 +265,12 @@
 					if (pTempDirEntry && pTempDirEntry->DataIsDirectory == 1)
 					{
 						auto nextDirOffset = rootDirOffset + pTempDirEntry->OffsetToDirectory;
-						SEEK_AND_READ(nextDirOffset, pResourceSection.levels[2].pDir, IMAGE_RESOURCE_DIRECTORY,1,ret);
+						SEEK_AND_READ(nextDirOffset, pResourceSection.levels[2].pDir, IMAGE_RESOURCE_DIRECTORY, 1, success);
 
 						nextDirOffset += sizeof(IMAGE_RESOURCE_DIRECTORY);
-						SEEK_AND_READ(nextDirOffset, pResourceSection.levels[2].pEntry, IMAGE_RESOURCE_DIRECTORY_ENTRY,1,ret);
+						SEEK_AND_READ(nextDirOffset, pResourceSection.levels[2].pEntry, IMAGE_RESOURCE_DIRECTORY_ENTRY, 1, success);
 
-						if (!ret)
+						if (!success)
 						{
 							throw std::runtime_error(PE_PARSE_ERR "ResourceDirectory is null.");
 						}
@@ -340,7 +283,7 @@
 						{
 							// Level 3
 							assert(pTempDirEntry->DataIsDirectory == 0); // level 3 points to Data (leaf node)
-							SEEK_AND_READ(rootDirOffset + pTempDirEntry->OffsetToData, pResourceSection.pData, IMAGE_RESOURCE_DATA_ENTRY,1,ret);
+							SEEK_AND_READ(rootDirOffset + pTempDirEntry->OffsetToData, pResourceSection.pData, IMAGE_RESOURCE_DATA_ENTRY, 1, success);
 
 							if (pResourceSection.pData)
 							{
@@ -348,15 +291,15 @@
 								assert(pResourceSection.pData->Size > 0);
 
 								auto dataOffset{ pResourceSection.pData->OffsetToData - pResourceSection.datadirRva };
-								SEEK_AND_READ(rootDirOffset + dataOffset, pResourceSection.pDataBuffer, BYTE, pResourceSection.pData->Size, ret);
+								SEEK_AND_READ(rootDirOffset + dataOffset, pResourceSection.pDataBuffer, BYTE, pResourceSection.pData->Size, success);
 							}
 						}
 					}
 				}
 			}
-        }
+		}
 
-        return ret;
+        return success;
     }
 
     bool PEParser::parseVersionInfo(
@@ -373,14 +316,14 @@
 
 			auto versionInfoSize{ pResourceSection.pData->Size };
 			auto pVersionInfo{ (version_info_t*)(pResourceSection.pDataBuffer) };
-			auto ret = pVersionInfo && pVersionInfo->key && pVersionInfo->key[0];
-			if (!ret)
+			auto success = pVersionInfo && pVersionInfo->key && pVersionInfo->key[0];
+			if (!success)
 			{
 				throw std::runtime_error(VERINFO_PARSE_ERR "VersionInfo key is Null or empty.");
 			}
 
-			ret = (wcsncmp(pVersionInfo->key, VS_VERSION_STRING, VS_VERSION_STRING_LEN) == 0);
-			if (!ret)
+			success = (wcsncmp(pVersionInfo->key, VS_VERSION_STRING, VS_VERSION_STRING_LEN) == 0);
+			if (!success)
 			{
 				throw std::runtime_error(VERINFO_PARSE_ERR "VersionInfo key has unexpected value.");
 			}
@@ -395,8 +338,8 @@
 			auto pFileInfo = (string_file_info_t*)tmp;
 
         repeat:
-			ret = pFileInfo && pFileInfo->key && pFileInfo->key[0];
-			if (!ret)
+			success = pFileInfo && pFileInfo->key && pFileInfo->key[0];
+			if (!success)
 			{
 				throw std::runtime_error(VERINFO_PARSE_ERR "FileInfo key is Null or empty.");
 			}
