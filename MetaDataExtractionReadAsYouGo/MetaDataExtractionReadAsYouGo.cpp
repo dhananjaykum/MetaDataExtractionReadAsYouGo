@@ -11,9 +11,11 @@ bool MetadataEx::searchVersionInfoByName(
 	const std::wstring& key,
 	std::wstring& value)
 {
-	auto found{ false };
-	for (auto i : versionInfo)
+	auto found{ false }; <-- bool should be fine here. No advantage of using auto
+	for (auto i : versionInfo) <-- const auto& i (otherwise copy i created)
 	{
+		<-- You can use more meaningful names instead of first and second.
+		const auto& [meaningfulNameInsteadofFirst, meaningfulNameInsteadOfSecond] (Check structured bindings)
 		if (wcsncmp(i.first.c_str(), key.c_str(), key.size()) == 0)
 		{
 			value = i.second;
@@ -21,6 +23,7 @@ bool MetadataEx::searchVersionInfoByName(
 		}
 	}
 
+	<-- Can we just return empty string in case of not found? Change the signature to return string?
 	if (!found)
 	{
 		std::wcout << "Resource value " << key << " not found in VS_VERSIONINFO.\n";
@@ -82,6 +85,6 @@ bool MetadataEx::getVersionInformation(
 
 		entity.emplace(ITEM_ID_VERSION_RESOURCE_SUBSYSTEM, std::to_wstring(subsystem));
 	}
-out:
+out: <-- No need for out:
 	return ret;
 }
