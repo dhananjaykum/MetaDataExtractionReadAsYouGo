@@ -218,7 +218,7 @@
 			{
 				if (pTempDirEntry &&
 					pTempDirEntry.get()->DataIsDirectory &&
-					pTempDirEntry.get()->Id == 16)
+					pTempDirEntry.get()->Id == (WORD)((ULONG_PTR)resourceId))
 				{
 					found = true;
 					break;
