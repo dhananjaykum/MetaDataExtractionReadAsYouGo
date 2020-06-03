@@ -17,7 +17,7 @@ void* displayErrorString(
 	{
 		return NULL;
 	}
-
+<-- Return a unique_ptr with LocalFree as custom deleter
 	return lpMsgBuf;
 }
 
@@ -28,6 +28,7 @@ File::File(const std::string& file)
 	m_currentPosition{ 0 }
 {};
 
+<-- If this class is unusable without openeing file handle, do in constructor. Check RAII principle
 bool File::open(void)
 {
 	m_handle = CreateFileA(
