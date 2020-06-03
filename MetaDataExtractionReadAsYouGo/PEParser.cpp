@@ -6,6 +6,7 @@
 //{
 	PEParser::PEParser()
 	{
+		<-- You can do this inline where these variables are declared. That is the recommended approach
 		m_fileName.clear();
 		m_spDosHdr = NULL;
 		m_spPeHdr = NULL;
@@ -22,6 +23,8 @@
 		m_flags = PEfileType::PE_TYPE_NONE;
 	}
 
+	<-- Can we specify seek and reading function once in constructor? 
+		Will you ever need separate functions for different calls to parse?
 	bool PEParser::parse(
 		const std::string& fileName,
 		std::function<bool(long)> pSeek,
