@@ -7,6 +7,8 @@
 #include <functional>
 #include "File.h"
 
+
+<-- Use enum classes
 //namespace uc
 //{
     enum PEfileType
@@ -34,6 +36,8 @@
 
 using version_value_t = std::pair<std::wstring, std::wstring>;
 using version_values_t = std::vector<version_value_t>;
+
+<-- Use inline functions wherever possible
 
 #define ALIGN_32BIT_BOUNDRY(i)		(i) = ((i) + 0x3) & (~0x3)
 #define VERINFO_PARSE_ERR           "VersionInfo parse error: "
