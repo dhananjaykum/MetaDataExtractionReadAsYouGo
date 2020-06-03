@@ -23,7 +23,7 @@ public:
 	}
 
 private:
-	std::string m_fileName;
+	const std::string m_fileName;
 	HANDLE m_handle;
 	size_t m_currentPosition;
 };
