@@ -18,29 +18,19 @@
 
     typedef struct
     {
-        char name[IMAGE_SIZEOF_SHORT_NAME + 1];
-        unsigned long startRva;
-        unsigned long endRva;
-        int sectionHdrIndex;
-        IMAGE_SECTION_HEADER* pSectionHdr;
-    } resource_section_header_t;
-
-    typedef struct
-    {
-        IMAGE_RESOURCE_DIRECTORY* pDir;
-        IMAGE_RESOURCE_DIRECTORY_ENTRY* pEntry;
+		std::unique_ptr<IMAGE_RESOURCE_DIRECTORY[]> spDir;
+		std::shared_ptr<IMAGE_RESOURCE_DIRECTORY_ENTRY> spEntry;
     }resource_tree_level_t;
 
-    typedef struct
-    {
-        resource_section_header_t hdr;
-        unsigned long datadirRva;
-        unsigned long offset;
-        resource_tree_level_t levels[3];
-        IMAGE_RESOURCE_DATA_ENTRY* pData;
-        BYTE* pDataBuffer;
-        std::vector<std::pair<std::wstring, std::wstring>> resources;
-    } resource_section_info_t;
+	typedef struct
+	{
+		ULONG datadirRva;
+		ULONG offset;
+		resource_tree_level_t levels[3];
+		std::unique_ptr<BYTE[]> spDataBuffer;
+		DWORD dataBufferSize;
+	} resource_section_info_t;
+
 
 using version_value_t = std::pair<std::wstring, std::wstring>;
 using version_values_t = std::vector<version_value_t>;
@@ -60,15 +50,18 @@ using version_values_t = std::vector<version_value_t>;
 
 #define ENG_LANG_CODE_STRING        (L"09")
 
-
-#define SEEK_AND_READ(offset,buf,type,num,ret)\
+#define SEEK_AND_READ(offset,buf,type,num,success)\
 do{\
-    ret = m_pSeek(offset);\
-    if (ret)\
-    {\
-        buf = new type[num];\
-        ret = m_pRead(buf, sizeof(type)*num);\
-    }\
+    m_pSeek(offset);\
+    buf = std::make_unique<type[]>(num);\
+    success = m_pRead((BYTE*)buf.get(), sizeof(type)*num);\
+}while(0)
+
+#define SEEK_AND_READ_SHARED(offset,buf,type,num,success)\
+do{\
+    m_pSeek(offset);\
+    buf = std::make_shared<type>();\
+    success = m_pRead((BYTE*)buf.get(), sizeof(type));\
 }while(0)
 
 #pragma pack(1)
@@ -116,17 +109,16 @@ do{\
 			using pSeek_t = std::function<bool(long)>;
 			using pRead_t = std::function<bool(void*, const DWORD)>;
 
-            void reset();
+			PEParser();
 
-			bool parse(
+           	bool parse(
 				const std::string& fileName,
 				pSeek_t pSeek,
 				pRead_t pRead);
 
 			bool parseResourceDir(
 				const LPWSTR resourceId,
-				resource_section_info_t& pResourceSection,
-				File& file);
+				resource_section_info_t& pResourceSection);
 
             bool parseVersionInfo(
 				const resource_section_info_t& pResourceSection,
@@ -151,15 +143,14 @@ do{\
 			pSeek_t  m_pSeek;
 			pRead_t  m_pRead;
 
-			BYTE  m_dosHdr[sizeof(IMAGE_DOS_HEADER)];
-            IMAGE_DOS_HEADER* m_pDosHdr;				/* Dos header */
-            IMAGE_NT_HEADERS* m_pPeHdr;					/* PE header */
+			std::unique_ptr<IMAGE_DOS_HEADER[]> m_spDosHdr; /* Dos header */
+			std::unique_ptr<IMAGE_NT_HEADERS[]> m_spPeHdr;  /* PE header */
 			IMAGE_NT_HEADERS32* m_pNtHdr32;				/* Nt header 32-bit */
             IMAGE_NT_HEADERS64* m_pNtHdr64;				/* Nt header 64-bit */
             IMAGE_FILE_HEADER* m_pFileHdr;				/* File header */
             IMAGE_OPTIONAL_HEADER32* m_pOptionalHdr32;	/* Optional header 32 bit*/
             IMAGE_OPTIONAL_HEADER64* m_pOptionalHdr64;	/* Optional header 64 bit */
-            IMAGE_SECTION_HEADER* m_pSectionTable;		/* Section table */
+			std::unique_ptr<IMAGE_SECTION_HEADER[]> m_spSectionTable; /* Section table */
             
         private:
 			template <typename T_IMAGE_NT_HEADER, typename T_IMAGE_OPTIONAL_HEADER>

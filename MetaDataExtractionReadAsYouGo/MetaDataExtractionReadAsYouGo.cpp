@@ -32,6 +32,7 @@ bool MetadataEx::getVersionInformation(
 	versionInformationMap& entity)
 {
 	version_values_t versionInfo;
+	uint32_t subsystem;
 	auto ret{ false };
 
 	try
@@ -47,11 +48,13 @@ bool MetadataEx::getVersionInformation(
 			std::bind(&File::read, &m_file, std::placeholders::_1, std::placeholders::_2));
 		CHECK_RET_CODE(ret, "parsing PE header failed");
 
-		ret = ret && parser.parseResourceDir(RT_VERSION, resourceSectionInfo, m_file);
+		ret = ret && parser.parseResourceDir(RT_VERSION, resourceSectionInfo);
 		CHECK_RET_CODE(ret, "parseResourceDir failed");
 
 		ret = ret && parser.parseVersionInfo(resourceSectionInfo, versionInfo);
 		CHECK_RET_CODE(ret, "parseVersionInfo failed");
+
+		subsystem = parser.getSubsystem();
 	}
 
 	catch (const std::exception & ex)
@@ -76,6 +79,8 @@ bool MetadataEx::getVersionInformation(
 
 		UPDATE_VERSION_INFO(versionInfo, std::wstring(FILE_VERSION_STRING),
 			ITEM_ID_VERSION_RESOURCE_FILE_VERSION, entity);
+
+		entity.emplace(ITEM_ID_VERSION_RESOURCE_SUBSYSTEM, std::to_wstring(subsystem));
 	}
 out:
 	return ret;
